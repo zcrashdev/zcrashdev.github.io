@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="ZCRASH is a small flag planted in the part of the privacy trade that nobody wants to say out loud.">
+    <meta property="og:title" content="ZCRASH">
+    <meta property="og:description" content="ZEC had ten years to become inevitable. ZCRASH is what happens when the chart disagrees.">
+    <meta property="og:image" content="assets/zcrash-mascot.png">
+    <title>ZCRASH | ZEC FUD</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="ZCRASH home">
+        <span class="brand-mark">Z</span>
+        <span>ZCRASH</span>
+      </a>
+      <nav class="nav-links" aria-label="Primary navigation">
+        <a href="#receipts">Receipts</a>
+        <a href="#game">Game</a>
+        <a href="#links">Links</a>
+      </nav>
+      <a class="social-link" href="https://x.com/zcrashHL" target="_blank" rel="noreferrer">@zcrashHL</a>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">a tiny monument to bad market structure</p>
+          <h1>zec had ten years to become inevitable.</h1>
+          <p class="hero-text">
+            it had the lore, the math, the fixed supply, the privacy arc. and yet
+            every few months the market has to pretend the wrapper isn't cursed.
+            zcrash is the part where we stop being polite about it.
+          </p>
+          <div class="source-stack" aria-live="polite">
+            <div class="source-stack-top">
+              <span id="source-label">SOURCE STACK</span>
+              <span id="source-count">01 / 06</span>
+            </div>
+            <h2 id="source-claim">privacy cannot be the product and the toggle.</h2>
+            <p id="source-detail">
+              transparent addresses are in the docs. the bear case does not need
+              to be invented. it is sitting in the product surface.
+            </p>
+            <a id="source-link" href="https://zcash.readthedocs.io/en/latest/rtd_pages/addresses.html" target="_blank" rel="noreferrer">receipt</a>
+          </div>
+          <div class="hero-actions" aria-label="Primary actions">
+            <a class="button button-dark" href="https://alt.fun/token/0x1a043eAeC3f5A33388DE42862C45dF2642000000" target="_blank" rel="noreferrer">enter zcrash</a>
+            <a class="button button-light" href="#game">play the failure</a>
+          </div>
+        </div>
+
+        <div class="hero-art" aria-label="ZCRASH mascot">
+          <img src="assets/zcrash-mascot.png" alt="ZCRASH mascot with house head and crash arrow">
+          <div class="ticker-tape" aria-hidden="true">
+            <span>ZEC BAGGAGE</span>
+            <span>TEAM EXIT</span>
+            <span>ZEC OPTIONAL</span>
+            <span>ZCRASH FUD</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="market-strip" aria-label="ZCRASH market framing">
+        <div>
+          <span class="metric-label">object</span>
+          <strong>fud</strong>
+        </div>
+        <div>
+          <span class="metric-label">for</span>
+          <strong>the bored</strong>
+        </div>
+        <div>
+          <span class="metric-label">target</span>
+          <strong>zec</strong>
+        </div>
+        <div>
+          <span class="metric-label">claim</span>
+          <strong>not enough</strong>
+        </div>
+      </section>
+
+      <section id="receipts" class="quick-fud-section">
+        <p class="eyebrow">the whole thing, basically</p>
+        <div class="quick-fud">
+          <a href="https://zcash.readthedocs.io/en/latest/rtd_pages/addresses.html" target="_blank" rel="noreferrer">
+            <span>ZEC OPTIONAL</span>
+            the privacy coin has public mode. this is not a bit.
+          </a>
+          <a href="https://www.theblock.co/post/384737/zcash-developers-form-new-company/" target="_blank" rel="noreferrer">
+            <span>TEAM EXIT</span>
+            even the serious people ended up in a governance knife fight.
+          </a>
+          <a href="https://www.reddit.com/r/CryptoCurrency/comments/1pbcg87/zcash_crashes_35_in_just_7_days/" target="_blank" rel="noreferrer">
+            <span>REDDIT TAPE</span>
+            the crowd smelled the pump before the chart admitted it.
+          </a>
+        </div>
+      </section>
+
+      <section id="game" class="game-section">
+        <div class="game-copy">
+          <p class="eyebrow">because reading is bearish</p>
+          <h2>Shield or Crash</h2>
+          <p>
+            this is the entire thesis turned into a stupid game. dodge the bags,
+            catch the receipts, try not to become someone else's exit.
+          </p>
+        </div>
+        <div class="game-shell">
+          <div class="game-hud">
+            <div>
+              <span>Score</span>
+              <strong id="game-score">0</strong>
+            </div>
+            <div>
+              <span>Rank</span>
+              <strong id="game-rank">BAGHOLDER</strong>
+            </div>
+            <div>
+              <span>Lives</span>
+              <strong id="game-lives">3</strong>
+            </div>
+          </div>
+          <canvas id="zcrash-game" width="960" height="520" aria-label="Shield or Crash arcade game"></canvas>
+          <div class="game-controls">
+            <button class="button button-dark" id="game-start" type="button">Start Run</button>
+            <p>arrows, A/D, or drag. green is conviction. red is the group chat.</p>
+          </div>
+          <div class="game-result" id="game-result">
+            <h3>YOU GOT USED AS EXIT LIQUIDITY</h3>
+            <p id="game-result-copy">press start. try not to become the lesson.</p>
+            <div class="receipt-links">
+              <a href="https://zcash.readthedocs.io/en/latest/rtd_pages/addresses.html" target="_blank" rel="noreferrer">optional privacy</a>
+              <a href="https://www.theblock.co/post/384737/zcash-developers-form-new-company/" target="_blank" rel="noreferrer">team exit</a>
+              <a href="https://www.reddit.com/r/CryptoCurrency/comments/1pbcg87/zcash_crashes_35_in_just_7_days/" target="_blank" rel="noreferrer">reddit tape</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="links" class="links-section">
+        <div>
+          <p class="eyebrow">the rest</p>
+          <h2>if the market wanted a clean privacy trade, it would have found one by now.</h2>
+        </div>
+        <div class="link-list">
+          <a href="https://alt.fun/token/0x1a043eAeC3f5A33388DE42862C45dF2642000000" target="_blank" rel="noreferrer">alt.fun token</a>
+          <a href="https://x.com/zcrashHL" target="_blank" rel="noreferrer">X / @zcrashHL</a>
+          <a href="https://www.z.cash/" target="_blank" rel="noreferrer">learn Zcash</a>
+          <a href="https://www.getmonero.org/" target="_blank" rel="noreferrer">learn Monero</a>
+          <a href="https://coinmarketcap.com/currencies/zcash/" target="_blank" rel="noreferrer">ZEC market data</a>
+          <a href="https://weareallzashi.org/" target="_blank" rel="noreferrer">Bootstrap/Zashi resolution</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>not financial advice. just pattern recognition with a ticker.</p>
+      <p>made for people who have watched the same trade get repackaged too many times.</p>
+    </footer>
+
+    <script src="script.js"></script>
+  </body>
+</html>
