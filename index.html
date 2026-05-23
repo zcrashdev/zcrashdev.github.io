@@ -115,40 +115,57 @@
             the timer dies.
           </p>
           <p class="jackpot-note">
-            preview only until the contract is deployed and verified.
+            live on hyperevm. connect rabby to play.
           </p>
-          <a class="button button-light" href="contracts/TokenEntryJackpot.sol">View contract</a>
+          <div class="hero-actions">
+            <a class="button button-light" href="contracts/TokenEntryJackpot.sol">View source</a>
+            <a class="button button-light" href="https://hyperevmscan.io/address/0x9174df799b332e63b2c5e2a3003e450f26cd9ba0" target="_blank" rel="noreferrer">View contract</a>
+          </div>
         </div>
 
-        <div class="jackpot-board" aria-label="Last buyer jackpot preview">
+        <div class="jackpot-board" aria-label="Live ZCRASH jackpot">
           <div class="jackpot-status">
-            <span>Simulation round</span>
-            <strong id="jackpot-clock">05:00</strong>
+            <span id="jackpot-round">Round --</span>
+            <strong id="jackpot-clock">--:--</strong>
           </div>
           <div class="jackpot-grid">
             <div>
-              <span>Token</span>
-              <strong>ZCRASH</strong>
+              <span>Status</span>
+              <strong id="jackpot-status">Connect wallet</strong>
             </div>
             <div>
               <span>Entry</span>
-              <strong id="jackpot-entry">1,000</strong>
+              <strong id="jackpot-entry">--</strong>
             </div>
             <div>
               <span>Pot</span>
-              <strong id="jackpot-pot">12,000</strong>
+              <strong id="jackpot-pot">--</strong>
             </div>
             <div>
               <span>Leader</span>
-              <strong id="jackpot-leader">0xZC...A5H</strong>
+              <strong id="jackpot-leader">--</strong>
+            </div>
+            <div>
+              <span>Wallet</span>
+              <strong id="jackpot-wallet">not connected</strong>
+            </div>
+            <div>
+              <span>Allowance</span>
+              <strong id="jackpot-allowance">--</strong>
             </div>
           </div>
           <div class="jackpot-actions">
-            <button class="button button-dark" id="jackpot-enter" type="button">Simulate entry</button>
+            <button class="button button-dark" id="jackpot-connect" type="button">Connect</button>
+            <button class="button button-light" id="jackpot-approve" type="button">Approve entry</button>
+            <button class="button button-dark" id="jackpot-enter" type="button">Enter</button>
+            <button class="button button-light" id="jackpot-finalize" type="button">Finalize</button>
+            <button class="button button-light" id="jackpot-claim" type="button">Claim</button>
+            <button class="button button-light" id="jackpot-next" type="button">Next round</button>
             <a class="button button-light" href="https://alt.fun/token/0x1a043eAeC3f5A33388DE42862C45dF2642000000" target="_blank" rel="noreferrer">Get token</a>
           </div>
+          <p class="jackpot-message" id="jackpot-message">Connect an EVM wallet on HyperEVM to read the live round.</p>
           <ol class="jackpot-rules">
-            <li>approve zcrash to the jackpot contract.</li>
+            <li>approve one zcrash entry to the jackpot contract.</li>
             <li>enter transfers the fixed token amount into the pot.</li>
             <li>the latest entrant becomes leader and resets the timer.</li>
             <li>after expiry, anyone finalizes and the winner claims.</li>
@@ -157,7 +174,7 @@
             token: 0x1a043eAeC3f5A33388DE42862C45dF2642000000
           </p>
           <p class="contract-address">
-            jackpot contract: pending deployment
+            jackpot contract: 0x9174df799b332e63b2c5e2a3003e450f26cd9ba0
           </p>
         </div>
       </section>
@@ -224,6 +241,7 @@
       <p>made for people who have watched the same trade get repackaged too many times.</p>
     </footer>
 
+    <script src="assets/ethers-5.7.2.umd.min.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

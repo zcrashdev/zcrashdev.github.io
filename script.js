@@ -125,50 +125,280 @@ document.querySelectorAll("section, .market-strip, .terminal-panel").forEach((se
   observer.observe(section);
 });
 
-const jackpotClock = document.querySelector("#jackpot-clock");
-const jackpotPot = document.querySelector("#jackpot-pot");
-const jackpotLeader = document.querySelector("#jackpot-leader");
-const jackpotEnter = document.querySelector("#jackpot-enter");
+const jackpot = {
+  tokenAddress: "0x1a043eAeC3f5A33388DE42862C45dF2642000000",
+  contractAddress: "0x9174df799b332e63b2c5e2a3003e450f26cd9ba0",
+  chainId: 999,
+  chainIdHex: "0x3e7",
+  decimals: 18,
+  provider: null,
+  signer: null,
+  account: null,
+  contract: null,
+  token: null,
+  round: null,
+  roundId: null,
+  allowance: null,
+  txPending: false,
+  refreshPending: false
+};
 
-if (jackpotClock && jackpotPot && jackpotLeader && jackpotEnter) {
-  const previewEntrants = [
-    "0xFUD...BEEF",
-    "0xZEC...REKT",
-    "0xHL...B1D",
-    "0xZC...A5H",
-    "0xBAD...C0DE"
-  ];
-  const roundDuration = 5 * 60;
-  let pot = 12000;
-  let endsAt = Date.now() + roundDuration * 1000;
-  let entrantIndex = 0;
+const jackpotAbi = [
+  "function currentRoundId() view returns (uint256)",
+  "function rounds(uint256) view returns (address leader,address winner,uint256 pot,uint256 entryAmount,uint256 roundDuration,uint256 endsAt,bool finalized,bool claimed)",
+  "function enter()",
+  "function finalizeRound()",
+  "function claimPrize(uint256 roundId)",
+  "function startNextRound()"
+];
 
-  function renderJackpot() {
-    const secondsLeft = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
-    const minutes = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
-    const seconds = String(secondsLeft % 60).padStart(2, "0");
+const tokenAbi = [
+  "function allowance(address owner,address spender) view returns (uint256)",
+  "function approve(address spender,uint256 amount) returns (bool)"
+];
 
-    jackpotClock.textContent = `${minutes}:${seconds}`;
-    jackpotPot.textContent = pot.toLocaleString("en-US");
+const jackpotEls = {
+  clock: document.querySelector("#jackpot-clock"),
+  round: document.querySelector("#jackpot-round"),
+  status: document.querySelector("#jackpot-status"),
+  entry: document.querySelector("#jackpot-entry"),
+  pot: document.querySelector("#jackpot-pot"),
+  leader: document.querySelector("#jackpot-leader"),
+  wallet: document.querySelector("#jackpot-wallet"),
+  allowance: document.querySelector("#jackpot-allowance"),
+  message: document.querySelector("#jackpot-message"),
+  connect: document.querySelector("#jackpot-connect"),
+  approve: document.querySelector("#jackpot-approve"),
+  enter: document.querySelector("#jackpot-enter"),
+  finalize: document.querySelector("#jackpot-finalize"),
+  claim: document.querySelector("#jackpot-claim"),
+  next: document.querySelector("#jackpot-next")
+};
 
-    if (secondsLeft === 0) {
-      jackpotEnter.textContent = "Round expired";
-      jackpotEnter.disabled = true;
-    }
+function shortAddress(address) {
+  if (!address || address === "0x0000000000000000000000000000000000000000") {
+    return "none";
   }
 
-  jackpotEnter.addEventListener("click", () => {
-    entrantIndex = (entrantIndex + 1) % previewEntrants.length;
-    pot += 1000;
-    endsAt = Date.now() + roundDuration * 1000;
-    jackpotLeader.textContent = previewEntrants[entrantIndex];
-    jackpotEnter.textContent = "Simulate entry";
-    jackpotEnter.disabled = false;
-    renderJackpot();
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+function formatToken(amount) {
+  if (!window.ethers || !amount) {
+    return "--";
+  }
+
+  const value = window.ethers.utils.formatUnits(amount, jackpot.decimals);
+  return Number(value).toLocaleString("en-US", {
+    maximumFractionDigits: 4
+  });
+}
+
+function setJackpotMessage(message) {
+  if (jackpotEls.message) {
+    jackpotEls.message.textContent = message;
+  }
+}
+
+function setJackpotButtons() {
+  const connected = Boolean(jackpot.account && jackpot.contract && jackpot.round);
+  const expired = connected && jackpot.round.endsAt.toNumber() <= Math.floor(Date.now() / 1000);
+  const finalized = connected && jackpot.round.finalized;
+  const isWinner = connected && jackpot.round.winner.toLowerCase() === jackpot.account.toLowerCase();
+  const hasClaim = connected && finalized && isWinner && !jackpot.round.claimed;
+  const hasAllowance = connected && jackpot.allowance?.gte(jackpot.round.entryAmount);
+  const locked = jackpot.txPending;
+
+  jackpotEls.connect.disabled = Boolean(jackpot.account) || locked;
+  jackpotEls.approve.disabled = locked || !connected || finalized || hasAllowance;
+  jackpotEls.enter.disabled = locked || !connected || expired || finalized || !hasAllowance;
+  jackpotEls.finalize.disabled = locked || !connected || !expired || finalized;
+  jackpotEls.claim.disabled = locked || !hasClaim;
+  jackpotEls.next.disabled = locked || !connected || !finalized;
+}
+
+function renderJackpotState() {
+  if (!jackpotEls.clock) {
+    return;
+  }
+
+  if (!jackpot.round) {
+    jackpotEls.clock.textContent = "--:--";
+    setJackpotButtons();
+    return;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const secondsLeft = Math.max(0, jackpot.round.endsAt.toNumber() - now);
+  const minutes = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
+  const seconds = String(secondsLeft % 60).padStart(2, "0");
+
+  jackpotEls.clock.textContent = jackpot.round.finalized ? "FINAL" : `${minutes}:${seconds}`;
+  jackpotEls.round.textContent = `Round ${jackpot.roundId}`;
+  jackpotEls.entry.textContent = `${formatToken(jackpot.round.entryAmount)} ZCRASH`;
+  jackpotEls.pot.textContent = `${formatToken(jackpot.round.pot)} ZCRASH`;
+  jackpotEls.leader.textContent = shortAddress(jackpot.round.leader);
+  jackpotEls.wallet.textContent = jackpot.account ? shortAddress(jackpot.account) : "not connected";
+  jackpotEls.allowance.textContent = jackpot.allowance ? `${formatToken(jackpot.allowance)} ZCRASH` : "--";
+
+  if (jackpot.round.finalized) {
+    jackpotEls.status.textContent = jackpot.round.claimed ? "claimed" : "finalized";
+  } else if (secondsLeft === 0) {
+    jackpotEls.status.textContent = "expired";
+  } else {
+    jackpotEls.status.textContent = "live";
+  }
+
+  setJackpotButtons();
+}
+
+async function ensureHyperEvm() {
+  const chainId = await window.ethereum.request({ method: "eth_chainId" });
+
+  if (chainId === jackpot.chainIdHex) {
+    return;
+  }
+
+  try {
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: jackpot.chainIdHex }]
+    });
+  } catch (error) {
+    if (error.code !== 4902) {
+      throw error;
+    }
+
+    await window.ethereum.request({
+      method: "wallet_addEthereumChain",
+      params: [
+        {
+          chainId: jackpot.chainIdHex,
+          chainName: "HyperEVM",
+          nativeCurrency: {
+            name: "HYPE",
+            symbol: "HYPE",
+            decimals: 18
+          },
+          rpcUrls: ["https://rpc.hyperliquid.xyz/evm"],
+          blockExplorerUrls: ["https://hyperevmscan.io"]
+        }
+      ]
+    });
+  }
+}
+
+async function refreshJackpot() {
+  if (!jackpot.contract || !jackpot.account) {
+    renderJackpotState();
+    return;
+  }
+
+  if (jackpot.refreshPending) {
+    return;
+  }
+
+  jackpot.refreshPending = true;
+
+  try {
+    jackpot.roundId = (await jackpot.contract.currentRoundId()).toString();
+    jackpot.round = await jackpot.contract.rounds(jackpot.roundId);
+    jackpot.allowance = await jackpot.token.allowance(jackpot.account, jackpot.contractAddress);
+    renderJackpotState();
+  } catch (error) {
+    setJackpotMessage(error?.message || "Could not refresh live jackpot state.");
+  } finally {
+    jackpot.refreshPending = false;
+  }
+}
+
+async function connectJackpot() {
+  if (!window.ethereum || !window.ethers) {
+    setJackpotMessage("Install Rabby or another EVM wallet to play.");
+    return;
+  }
+
+  try {
+    setJackpotMessage("Connecting wallet...");
+    await ensureHyperEvm();
+
+    jackpot.provider = new window.ethers.providers.Web3Provider(window.ethereum, "any");
+    await jackpot.provider.send("eth_requestAccounts", []);
+    jackpot.signer = jackpot.provider.getSigner();
+    jackpot.account = await jackpot.signer.getAddress();
+    jackpot.contract = new window.ethers.Contract(jackpot.contractAddress, jackpotAbi, jackpot.signer);
+    jackpot.token = new window.ethers.Contract(jackpot.tokenAddress, tokenAbi, jackpot.signer);
+
+    setJackpotMessage("Connected. Reading live round...");
+    await refreshJackpot();
+    setJackpotMessage("Live on HyperEVM. Approve the entry amount, then enter the round.");
+  } catch (error) {
+    setJackpotMessage(error?.message || "Wallet connection failed.");
+  }
+}
+
+async function runJackpotTx(label, action) {
+  if (jackpot.txPending) {
+    return;
+  }
+
+  try {
+    jackpot.txPending = true;
+    setJackpotButtons();
+    await ensureHyperEvm();
+    setJackpotMessage(`${label} transaction pending...`);
+    const tx = await action();
+    setJackpotMessage(`${label} sent. Waiting for confirmation...`);
+    await tx.wait();
+    await refreshJackpot();
+    setJackpotMessage(`${label} confirmed.`);
+  } catch (error) {
+    setJackpotMessage(error?.data?.message || error?.message || `${label} failed.`);
+  } finally {
+    jackpot.txPending = false;
+    setJackpotButtons();
+  }
+}
+
+if (jackpotEls.clock) {
+  jackpotEls.connect?.addEventListener("click", connectJackpot);
+  jackpotEls.approve?.addEventListener("click", () => {
+    if (!jackpot.token || !jackpot.round) return;
+    runJackpotTx("Approve", () => jackpot.token.approve(jackpot.contractAddress, jackpot.round.entryAmount));
+  });
+  jackpotEls.enter?.addEventListener("click", () => {
+    if (!jackpot.contract) return;
+    runJackpotTx("Enter", () => jackpot.contract.enter());
+  });
+  jackpotEls.finalize?.addEventListener("click", () => {
+    if (!jackpot.contract) return;
+    runJackpotTx("Finalize", () => jackpot.contract.finalizeRound());
+  });
+  jackpotEls.claim?.addEventListener("click", () => {
+    if (!jackpot.contract || !jackpot.roundId) return;
+    runJackpotTx("Claim", () => jackpot.contract.claimPrize(jackpot.roundId));
+  });
+  jackpotEls.next?.addEventListener("click", () => {
+    if (!jackpot.contract) return;
+    runJackpotTx("Next round", () => jackpot.contract.startNextRound());
   });
 
-  renderJackpot();
-  window.setInterval(renderJackpot, 1000);
+  setJackpotButtons();
+  window.setInterval(() => {
+    renderJackpotState();
+  }, 1000);
+  window.setInterval(() => {
+    if (jackpot.account && !jackpot.txPending) {
+      refreshJackpot();
+    }
+  }, 12000);
+
+  window.ethereum?.on?.("accountsChanged", () => {
+    window.location.reload();
+  });
+  window.ethereum?.on?.("chainChanged", () => {
+    window.location.reload();
+  });
 }
 
 const gameCanvas = document.querySelector("#zcrash-game");

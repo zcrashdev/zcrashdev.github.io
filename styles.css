@@ -801,6 +801,29 @@ h3 {
   border-bottom: 1px solid var(--line);
 }
 
+.jackpot-actions .button {
+  cursor: pointer;
+}
+
+.jackpot-actions .button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
+  box-shadow: none;
+}
+
+.jackpot-message {
+  margin: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+  color: #44443e;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
 .jackpot-rules {
   display: grid;
   gap: 10px;
