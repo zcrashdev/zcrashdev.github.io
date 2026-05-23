@@ -210,7 +210,7 @@ function setJackpotButtons() {
   const missingContract = !jackpot.contractAddress;
 
   jackpotEls.connect.disabled = Boolean(jackpot.account) || locked || missingContract;
-  jackpotEls.approve.disabled = locked || !connected || expired || hasAllowance;
+  jackpotEls.approve.disabled = locked || !connected || (expired && hasPot) || hasAllowance;
   jackpotEls.enter.disabled = locked || !connected || (expired && hasPot) || !hasAllowance;
   jackpotEls.claim.disabled = locked || !hasClaim;
 }
