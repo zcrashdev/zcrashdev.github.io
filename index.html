@@ -22,6 +22,7 @@
       </a>
       <nav class="nav-links" aria-label="Primary navigation">
         <a href="#receipts">Receipts</a>
+        <a href="#jackpot">Jackpot</a>
         <a href="#game">Game</a>
         <a href="#links">Links</a>
       </nav>
@@ -101,6 +102,63 @@
             <span>REDDIT TAPE</span>
             the crowd smelled the pump before the chart admitted it.
           </a>
+        </div>
+      </section>
+
+      <section id="jackpot" class="jackpot-section">
+        <div class="jackpot-copy">
+          <p class="eyebrow">token utility v1</p>
+          <h2>Last entrant takes the pot.</h2>
+          <p>
+            first version is simple: players enter with zcrash tokens, every
+            entry resets the clock, the latest wallet wins the token pot when
+            the timer dies.
+          </p>
+          <p class="jackpot-note">
+            preview only until the contract is deployed and verified.
+          </p>
+          <a class="button button-light" href="contracts/TokenEntryJackpot.sol">View contract</a>
+        </div>
+
+        <div class="jackpot-board" aria-label="Last buyer jackpot preview">
+          <div class="jackpot-status">
+            <span>Simulation round</span>
+            <strong id="jackpot-clock">05:00</strong>
+          </div>
+          <div class="jackpot-grid">
+            <div>
+              <span>Token</span>
+              <strong>ZCRASH</strong>
+            </div>
+            <div>
+              <span>Entry</span>
+              <strong id="jackpot-entry">1,000</strong>
+            </div>
+            <div>
+              <span>Pot</span>
+              <strong id="jackpot-pot">12,000</strong>
+            </div>
+            <div>
+              <span>Leader</span>
+              <strong id="jackpot-leader">0xZC...A5H</strong>
+            </div>
+          </div>
+          <div class="jackpot-actions">
+            <button class="button button-dark" id="jackpot-enter" type="button">Simulate entry</button>
+            <a class="button button-light" href="https://alt.fun/token/0x1a043eAeC3f5A33388DE42862C45dF2642000000" target="_blank" rel="noreferrer">Get token</a>
+          </div>
+          <ol class="jackpot-rules">
+            <li>approve zcrash to the jackpot contract.</li>
+            <li>enter transfers the fixed token amount into the pot.</li>
+            <li>the latest entrant becomes leader and resets the timer.</li>
+            <li>after expiry, anyone finalizes and the winner claims.</li>
+          </ol>
+          <p class="contract-address">
+            token: 0x1a043eAeC3f5A33388DE42862C45dF2642000000
+          </p>
+          <p class="contract-address">
+            jackpot contract: pending deployment
+          </p>
         </div>
       </section>
 

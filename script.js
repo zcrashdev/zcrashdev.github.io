@@ -125,6 +125,52 @@ document.querySelectorAll("section, .market-strip, .terminal-panel").forEach((se
   observer.observe(section);
 });
 
+const jackpotClock = document.querySelector("#jackpot-clock");
+const jackpotPot = document.querySelector("#jackpot-pot");
+const jackpotLeader = document.querySelector("#jackpot-leader");
+const jackpotEnter = document.querySelector("#jackpot-enter");
+
+if (jackpotClock && jackpotPot && jackpotLeader && jackpotEnter) {
+  const previewEntrants = [
+    "0xFUD...BEEF",
+    "0xZEC...REKT",
+    "0xHL...B1D",
+    "0xZC...A5H",
+    "0xBAD...C0DE"
+  ];
+  const roundDuration = 5 * 60;
+  let pot = 12000;
+  let endsAt = Date.now() + roundDuration * 1000;
+  let entrantIndex = 0;
+
+  function renderJackpot() {
+    const secondsLeft = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+    const minutes = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
+    const seconds = String(secondsLeft % 60).padStart(2, "0");
+
+    jackpotClock.textContent = `${minutes}:${seconds}`;
+    jackpotPot.textContent = pot.toLocaleString("en-US");
+
+    if (secondsLeft === 0) {
+      jackpotEnter.textContent = "Round expired";
+      jackpotEnter.disabled = true;
+    }
+  }
+
+  jackpotEnter.addEventListener("click", () => {
+    entrantIndex = (entrantIndex + 1) % previewEntrants.length;
+    pot += 1000;
+    endsAt = Date.now() + roundDuration * 1000;
+    jackpotLeader.textContent = previewEntrants[entrantIndex];
+    jackpotEnter.textContent = "Simulate entry";
+    jackpotEnter.disabled = false;
+    renderJackpot();
+  });
+
+  renderJackpot();
+  window.setInterval(renderJackpot, 1000);
+}
+
 const gameCanvas = document.querySelector("#zcrash-game");
 
 if (gameCanvas) {
