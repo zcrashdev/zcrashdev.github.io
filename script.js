@@ -127,7 +127,7 @@ document.querySelectorAll("section, .market-strip, .terminal-panel").forEach((se
 
 const jackpot = {
   tokenAddress: "0x1a043eAeC3f5A33388DE42862C45dF2642000000",
-  contractAddress: "",
+  contractAddress: "0x08CDb892AD44c0107e07B244b78914bEf774E3D3",
   chainId: 999,
   chainIdHex: "0x3e7",
   decimals: 18,
