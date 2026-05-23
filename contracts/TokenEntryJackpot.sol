@@ -10,11 +10,9 @@ interface IERC20 {
 contract TokenEntryJackpot {
     error NotOwner();
     error Paused();
-    error RoundActive();
-    error RoundExpired();
-    error RoundNotExpired();
-    error RoundAlreadyFinalized();
-    error PrizeAlreadyClaimed();
+    error JackpotExpired();
+    error JackpotNotExpired();
+    error NoPrize();
     error NotWinner();
     error InvalidAmount();
     error InvalidDuration();
@@ -22,39 +20,21 @@ contract TokenEntryJackpot {
     error ReentrantCall();
     error NoTokensReceived();
 
-    struct Round {
-        address leader;
-        address winner;
-        uint256 pot;
-        uint256 entryAmount;
-        uint256 roundDuration;
-        uint256 endsAt;
-        bool finalized;
-        bool claimed;
-    }
-
     IERC20 public immutable token;
     address public owner;
+    address public leader;
+    address public lastWinner;
     uint256 public entryAmount;
-    uint256 public roundDuration;
-    uint256 public currentRoundId;
+    uint256 public jackpotDuration;
+    uint256 public endsAt;
+    uint256 public pot;
     bool public paused;
     bool private locked;
 
-    mapping(uint256 => Round) public rounds;
-
-    event Entered(
-        uint256 indexed roundId,
-        address indexed player,
-        uint256 amount,
-        uint256 pot,
-        uint256 endsAt
-    );
-    event RoundFinalized(uint256 indexed roundId, address indexed winner, uint256 pot);
-    event PrizeClaimed(uint256 indexed roundId, address indexed winner, uint256 amount);
-    event NextRoundStarted(uint256 indexed roundId, uint256 endsAt);
+    event Entered(address indexed player, uint256 amount, uint256 pot, uint256 endsAt);
+    event PrizeClaimed(address indexed winner, uint256 amount);
     event EntryAmountUpdated(uint256 entryAmount);
-    event RoundDurationUpdated(uint256 roundDuration);
+    event JackpotDurationUpdated(uint256 jackpotDuration);
     event PausedSet(bool paused);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
@@ -75,78 +55,52 @@ contract TokenEntryJackpot {
         locked = false;
     }
 
-    constructor(address token_, uint256 entryAmount_, uint256 roundDuration_) {
+    constructor(address token_, uint256 entryAmount_, uint256 jackpotDuration_) {
         if (token_ == address(0) || entryAmount_ == 0) revert InvalidAmount();
-        if (roundDuration_ == 0) revert InvalidDuration();
+        if (jackpotDuration_ == 0) revert InvalidDuration();
 
         token = IERC20(token_);
         owner = msg.sender;
         entryAmount = entryAmount_;
-        roundDuration = roundDuration_;
-        currentRoundId = 1;
-        rounds[currentRoundId].entryAmount = entryAmount_;
-        rounds[currentRoundId].roundDuration = roundDuration_;
-        rounds[currentRoundId].endsAt = block.timestamp + roundDuration_;
+        jackpotDuration = jackpotDuration_;
+        endsAt = block.timestamp + jackpotDuration_;
 
         emit OwnershipTransferred(address(0), msg.sender);
-        emit NextRoundStarted(currentRoundId, rounds[currentRoundId].endsAt);
     }
 
     function enter() external whenNotPaused nonReentrant {
-        Round storage round = rounds[currentRoundId];
-        if (round.finalized) revert RoundAlreadyFinalized();
-        if (block.timestamp >= round.endsAt) revert RoundExpired();
+        if (block.timestamp >= endsAt && pot > 0) revert JackpotExpired();
+        if (block.timestamp >= endsAt && pot == 0) {
+            endsAt = block.timestamp + jackpotDuration;
+        }
 
         uint256 balanceBefore = token.balanceOf(address(this));
-        _safeTransferFrom(msg.sender, address(this), round.entryAmount);
+        _safeTransferFrom(msg.sender, address(this), entryAmount);
         uint256 received = token.balanceOf(address(this)) - balanceBefore;
         if (received == 0) revert NoTokensReceived();
 
-        round.leader = msg.sender;
-        round.pot += received;
-        round.endsAt = block.timestamp + round.roundDuration;
+        leader = msg.sender;
+        pot += received;
+        endsAt = block.timestamp + jackpotDuration;
 
-        emit Entered(currentRoundId, msg.sender, received, round.pot, round.endsAt);
+        emit Entered(msg.sender, received, pot, endsAt);
     }
 
-    function finalizeRound() external {
-        Round storage round = rounds[currentRoundId];
-        if (round.finalized) revert RoundAlreadyFinalized();
-        if (block.timestamp < round.endsAt) revert RoundNotExpired();
+    function claimPrize() external nonReentrant {
+        if (block.timestamp < endsAt) revert JackpotNotExpired();
+        if (pot == 0) revert NoPrize();
+        if (msg.sender != leader) revert NotWinner();
 
-        round.finalized = true;
-        round.winner = round.leader;
+        uint256 amount = pot;
+        address winner = msg.sender;
 
-        emit RoundFinalized(currentRoundId, round.winner, round.pot);
-    }
+        pot = 0;
+        leader = address(0);
+        lastWinner = winner;
+        endsAt = block.timestamp + jackpotDuration;
 
-    function claimPrize(uint256 roundId) external nonReentrant {
-        Round storage round = rounds[roundId];
-        if (!round.finalized) revert RoundNotExpired();
-        if (round.claimed) revert PrizeAlreadyClaimed();
-        if (msg.sender != round.winner) revert NotWinner();
-
-        uint256 amount = round.pot;
-        round.claimed = true;
-        round.pot = 0;
-
-        if (amount > 0) {
-            _safeTransfer(msg.sender, amount);
-        }
-
-        emit PrizeClaimed(roundId, msg.sender, amount);
-    }
-
-    function startNextRound() external whenNotPaused {
-        Round storage current = rounds[currentRoundId];
-        if (!current.finalized) revert RoundActive();
-
-        currentRoundId += 1;
-        rounds[currentRoundId].entryAmount = entryAmount;
-        rounds[currentRoundId].roundDuration = roundDuration;
-        rounds[currentRoundId].endsAt = block.timestamp + roundDuration;
-
-        emit NextRoundStarted(currentRoundId, rounds[currentRoundId].endsAt);
+        emit PrizeClaimed(winner, amount);
+        _safeTransfer(winner, amount);
     }
 
     function setEntryAmount(uint256 entryAmount_) external onlyOwner {
@@ -155,10 +109,10 @@ contract TokenEntryJackpot {
         emit EntryAmountUpdated(entryAmount_);
     }
 
-    function setRoundDuration(uint256 roundDuration_) external onlyOwner {
-        if (roundDuration_ == 0) revert InvalidDuration();
-        roundDuration = roundDuration_;
-        emit RoundDurationUpdated(roundDuration_);
+    function setJackpotDuration(uint256 jackpotDuration_) external onlyOwner {
+        if (jackpotDuration_ == 0) revert InvalidDuration();
+        jackpotDuration = jackpotDuration_;
+        emit JackpotDurationUpdated(jackpotDuration_);
     }
 
     function setPaused(bool paused_) external onlyOwner {

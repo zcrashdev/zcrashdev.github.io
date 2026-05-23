@@ -127,7 +127,7 @@ document.querySelectorAll("section, .market-strip, .terminal-panel").forEach((se
 
 const jackpot = {
   tokenAddress: "0x1a043eAeC3f5A33388DE42862C45dF2642000000",
-  contractAddress: "0x9174df799b332e63b2c5e2a3003e450f26cd9ba0",
+  contractAddress: "",
   chainId: 999,
   chainIdHex: "0x3e7",
   decimals: 18,
@@ -136,20 +136,21 @@ const jackpot = {
   account: null,
   contract: null,
   token: null,
-  round: null,
-  roundId: null,
+  state: null,
   allowance: null,
   txPending: false,
   refreshPending: false
 };
 
 const jackpotAbi = [
-  "function currentRoundId() view returns (uint256)",
-  "function rounds(uint256) view returns (address leader,address winner,uint256 pot,uint256 entryAmount,uint256 roundDuration,uint256 endsAt,bool finalized,bool claimed)",
+  "function leader() view returns (address)",
+  "function lastWinner() view returns (address)",
+  "function pot() view returns (uint256)",
+  "function entryAmount() view returns (uint256)",
+  "function jackpotDuration() view returns (uint256)",
+  "function endsAt() view returns (uint256)",
   "function enter()",
-  "function finalizeRound()",
-  "function claimPrize(uint256 roundId)",
-  "function startNextRound()"
+  "function claimPrize()"
 ];
 
 const tokenAbi = [
@@ -159,7 +160,7 @@ const tokenAbi = [
 
 const jackpotEls = {
   clock: document.querySelector("#jackpot-clock"),
-  round: document.querySelector("#jackpot-round"),
+  title: document.querySelector("#jackpot-title"),
   status: document.querySelector("#jackpot-status"),
   entry: document.querySelector("#jackpot-entry"),
   pot: document.querySelector("#jackpot-pot"),
@@ -170,9 +171,7 @@ const jackpotEls = {
   connect: document.querySelector("#jackpot-connect"),
   approve: document.querySelector("#jackpot-approve"),
   enter: document.querySelector("#jackpot-enter"),
-  finalize: document.querySelector("#jackpot-finalize"),
-  claim: document.querySelector("#jackpot-claim"),
-  next: document.querySelector("#jackpot-next")
+  claim: document.querySelector("#jackpot-claim")
 };
 
 function shortAddress(address) {
@@ -201,20 +200,19 @@ function setJackpotMessage(message) {
 }
 
 function setJackpotButtons() {
-  const connected = Boolean(jackpot.account && jackpot.contract && jackpot.round);
-  const expired = connected && jackpot.round.endsAt.toNumber() <= Math.floor(Date.now() / 1000);
-  const finalized = connected && jackpot.round.finalized;
-  const isWinner = connected && jackpot.round.winner.toLowerCase() === jackpot.account.toLowerCase();
-  const hasClaim = connected && finalized && isWinner && !jackpot.round.claimed;
-  const hasAllowance = connected && jackpot.allowance?.gte(jackpot.round.entryAmount);
+  const connected = Boolean(jackpot.account && jackpot.contract && jackpot.state);
+  const expired = connected && jackpot.state.endsAt.toNumber() <= Math.floor(Date.now() / 1000);
+  const hasPot = connected && !jackpot.state.pot.isZero();
+  const isLeader = connected && jackpot.state.leader.toLowerCase() === jackpot.account.toLowerCase();
+  const hasClaim = connected && expired && hasPot && isLeader;
+  const hasAllowance = connected && jackpot.allowance?.gte(jackpot.state.entryAmount);
   const locked = jackpot.txPending;
+  const missingContract = !jackpot.contractAddress;
 
-  jackpotEls.connect.disabled = Boolean(jackpot.account) || locked;
-  jackpotEls.approve.disabled = locked || !connected || finalized || hasAllowance;
-  jackpotEls.enter.disabled = locked || !connected || expired || finalized || !hasAllowance;
-  jackpotEls.finalize.disabled = locked || !connected || !expired || finalized;
+  jackpotEls.connect.disabled = Boolean(jackpot.account) || locked || missingContract;
+  jackpotEls.approve.disabled = locked || !connected || expired || hasAllowance;
+  jackpotEls.enter.disabled = locked || !connected || (expired && hasPot) || !hasAllowance;
   jackpotEls.claim.disabled = locked || !hasClaim;
-  jackpotEls.next.disabled = locked || !connected || !finalized;
 }
 
 function renderJackpotState() {
@@ -222,29 +220,31 @@ function renderJackpotState() {
     return;
   }
 
-  if (!jackpot.round) {
+  if (!jackpot.state) {
     jackpotEls.clock.textContent = "--:--";
     setJackpotButtons();
     return;
   }
 
   const now = Math.floor(Date.now() / 1000);
-  const secondsLeft = Math.max(0, jackpot.round.endsAt.toNumber() - now);
+  const secondsLeft = Math.max(0, jackpot.state.endsAt.toNumber() - now);
   const minutes = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const seconds = String(secondsLeft % 60).padStart(2, "0");
 
-  jackpotEls.clock.textContent = jackpot.round.finalized ? "FINAL" : `${minutes}:${seconds}`;
-  jackpotEls.round.textContent = `Round ${jackpot.roundId}`;
-  jackpotEls.entry.textContent = `${formatToken(jackpot.round.entryAmount)} ZCRASH`;
-  jackpotEls.pot.textContent = `${formatToken(jackpot.round.pot)} ZCRASH`;
-  jackpotEls.leader.textContent = shortAddress(jackpot.round.leader);
+  jackpotEls.clock.textContent = `${minutes}:${seconds}`;
+  jackpotEls.title.textContent = "Jackpot";
+  jackpotEls.entry.textContent = `${formatToken(jackpot.state.entryAmount)} ZCRASH`;
+  jackpotEls.pot.textContent = `${formatToken(jackpot.state.pot)} ZCRASH`;
+  jackpotEls.leader.textContent = shortAddress(jackpot.state.leader);
   jackpotEls.wallet.textContent = jackpot.account ? shortAddress(jackpot.account) : "not connected";
   jackpotEls.allowance.textContent = jackpot.allowance ? `${formatToken(jackpot.allowance)} ZCRASH` : "--";
 
-  if (jackpot.round.finalized) {
-    jackpotEls.status.textContent = jackpot.round.claimed ? "claimed" : "finalized";
+  if (secondsLeft === 0 && jackpot.state.pot.isZero()) {
+    jackpotEls.status.textContent = "empty expired";
+  } else if (secondsLeft === 0 && jackpot.state.leader.toLowerCase() === jackpot.account?.toLowerCase()) {
+    jackpotEls.status.textContent = "claimable";
   } else if (secondsLeft === 0) {
-    jackpotEls.status.textContent = "expired";
+    jackpotEls.status.textContent = "waiting winner";
   } else {
     jackpotEls.status.textContent = "live";
   }
@@ -301,8 +301,15 @@ async function refreshJackpot() {
   jackpot.refreshPending = true;
 
   try {
-    jackpot.roundId = (await jackpot.contract.currentRoundId()).toString();
-    jackpot.round = await jackpot.contract.rounds(jackpot.roundId);
+    const [leader, lastWinner, pot, entryAmount, jackpotDuration, endsAt] = await Promise.all([
+      jackpot.contract.leader(),
+      jackpot.contract.lastWinner(),
+      jackpot.contract.pot(),
+      jackpot.contract.entryAmount(),
+      jackpot.contract.jackpotDuration(),
+      jackpot.contract.endsAt()
+    ]);
+    jackpot.state = { leader, lastWinner, pot, entryAmount, jackpotDuration, endsAt };
     jackpot.allowance = await jackpot.token.allowance(jackpot.account, jackpot.contractAddress);
     renderJackpotState();
   } catch (error) {
@@ -318,6 +325,11 @@ async function connectJackpot() {
     return;
   }
 
+  if (!jackpot.contractAddress) {
+    setJackpotMessage("Deploy the V2 claim-only jackpot contract, then add its address to the site.");
+    return;
+  }
+
   try {
     setJackpotMessage("Connecting wallet...");
     await ensureHyperEvm();
@@ -329,9 +341,9 @@ async function connectJackpot() {
     jackpot.contract = new window.ethers.Contract(jackpot.contractAddress, jackpotAbi, jackpot.signer);
     jackpot.token = new window.ethers.Contract(jackpot.tokenAddress, tokenAbi, jackpot.signer);
 
-    setJackpotMessage("Connected. Reading live round...");
+    setJackpotMessage("Connected. Reading live jackpot...");
     await refreshJackpot();
-    setJackpotMessage("Live on HyperEVM. Approve the entry amount, then enter the round.");
+    setJackpotMessage("Live on HyperEVM. Approve the entry amount, enter, then claim if you are leader when the clock hits zero.");
   } catch (error) {
     setJackpotMessage(error?.message || "Wallet connection failed.");
   }
@@ -363,24 +375,16 @@ async function runJackpotTx(label, action) {
 if (jackpotEls.clock) {
   jackpotEls.connect?.addEventListener("click", connectJackpot);
   jackpotEls.approve?.addEventListener("click", () => {
-    if (!jackpot.token || !jackpot.round) return;
-    runJackpotTx("Approve", () => jackpot.token.approve(jackpot.contractAddress, jackpot.round.entryAmount));
+    if (!jackpot.token || !jackpot.state) return;
+    runJackpotTx("Approve", () => jackpot.token.approve(jackpot.contractAddress, jackpot.state.entryAmount));
   });
   jackpotEls.enter?.addEventListener("click", () => {
     if (!jackpot.contract) return;
     runJackpotTx("Enter", () => jackpot.contract.enter());
   });
-  jackpotEls.finalize?.addEventListener("click", () => {
-    if (!jackpot.contract) return;
-    runJackpotTx("Finalize", () => jackpot.contract.finalizeRound());
-  });
   jackpotEls.claim?.addEventListener("click", () => {
-    if (!jackpot.contract || !jackpot.roundId) return;
-    runJackpotTx("Claim", () => jackpot.contract.claimPrize(jackpot.roundId));
-  });
-  jackpotEls.next?.addEventListener("click", () => {
     if (!jackpot.contract) return;
-    runJackpotTx("Next round", () => jackpot.contract.startNextRound());
+    runJackpotTx("Claim", () => jackpot.contract.claimPrize());
   });
 
   setJackpotButtons();

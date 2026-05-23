@@ -115,17 +115,16 @@
             the timer dies.
           </p>
           <p class="jackpot-note">
-            live on hyperevm. connect rabby to play.
+            v2 ready. redeploy this contract before public play.
           </p>
           <div class="hero-actions">
             <a class="button button-light" href="contracts/TokenEntryJackpot.sol">View source</a>
-            <a class="button button-light" href="https://hyperevmscan.io/address/0x9174df799b332e63b2c5e2a3003e450f26cd9ba0" target="_blank" rel="noreferrer">View contract</a>
           </div>
         </div>
 
         <div class="jackpot-board" aria-label="Live ZCRASH jackpot">
           <div class="jackpot-status">
-            <span id="jackpot-round">Round --</span>
+            <span id="jackpot-title">Jackpot</span>
             <strong id="jackpot-clock">--:--</strong>
           </div>
           <div class="jackpot-grid">
@@ -158,23 +157,21 @@
             <button class="button button-dark" id="jackpot-connect" type="button">Connect</button>
             <button class="button button-light" id="jackpot-approve" type="button">Approve entry</button>
             <button class="button button-dark" id="jackpot-enter" type="button">Enter</button>
-            <button class="button button-light" id="jackpot-finalize" type="button">Finalize</button>
             <button class="button button-light" id="jackpot-claim" type="button">Claim</button>
-            <button class="button button-light" id="jackpot-next" type="button">Next round</button>
             <a class="button button-light" href="https://alt.fun/token/0x1a043eAeC3f5A33388DE42862C45dF2642000000" target="_blank" rel="noreferrer">Get token</a>
           </div>
-          <p class="jackpot-message" id="jackpot-message">Connect an EVM wallet on HyperEVM to read the live round.</p>
+          <p class="jackpot-message" id="jackpot-message">Connect an EVM wallet on HyperEVM to read the live jackpot.</p>
           <ol class="jackpot-rules">
             <li>approve one zcrash entry to the jackpot contract.</li>
             <li>enter transfers the fixed token amount into the pot.</li>
             <li>the latest entrant becomes leader and resets the timer.</li>
-            <li>after expiry, anyone finalizes and the winner claims.</li>
+            <li>after expiry, the leader claims and the jackpot resets.</li>
           </ol>
           <p class="contract-address">
             token: 0x1a043eAeC3f5A33388DE42862C45dF2642000000
           </p>
           <p class="contract-address">
-            jackpot contract: 0x9174df799b332e63b2c5e2a3003e450f26cd9ba0
+            v2 jackpot contract: pending redeploy
           </p>
         </div>
       </section>

@@ -29,19 +29,14 @@ contract MockERC20 {
     }
 
     function transfer(address to, uint256 amount) external returns (bool) {
-        if (failTransfers) {
-            return false;
-        }
-
+        if (failTransfers) return false;
         balanceOf[msg.sender] -= amount;
         balanceOf[to] += amount;
         return true;
     }
 
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        if (failTransfers) {
-            return false;
-        }
+        if (failTransfers) return false;
 
         uint256 allowed = allowance[from][msg.sender];
         if (allowed != type(uint256).max) {
@@ -74,192 +69,162 @@ contract TokenEntryJackpotTest {
     address private bob = address(0xB0B);
     address private carol = address(0xCA901);
     uint256 private entryAmount = 1_000 ether;
-    uint256 private roundDuration = 5 minutes;
+    uint256 private jackpotDuration = 5 minutes;
 
     function setUp() public {
         token = new MockERC20();
-        jackpot = new TokenEntryJackpot(address(token), entryAmount, roundDuration);
+        jackpot = new TokenEntryJackpot(address(token), entryAmount, jackpotDuration);
 
         _fundAndApprove(alice, 10_000 ether);
         _fundAndApprove(bob, 10_000 ether);
         _fundAndApprove(carol, 10_000 ether);
     }
 
-    function testConstructorStartsFirstRound() public view {
-        (
-            address leader,
-            address winner,
-            uint256 pot,
-            uint256 roundEntryAmount,
-            uint256 roundLength,
-            uint256 endsAt,
-            bool finalized,
-            bool claimed
-        ) = jackpot.rounds(1);
-
-        _assertEq(jackpot.currentRoundId(), 1);
-        _assertEq(roundEntryAmount, entryAmount);
-        _assertEq(roundLength, roundDuration);
-        _assertEq(endsAt, block.timestamp + roundDuration);
-        _assertEq(leader, address(0));
-        _assertEq(winner, address(0));
-        _assertEq(pot, 0);
-        _assertFalse(finalized);
-        _assertFalse(claimed);
+    function testConstructorInitializesJackpot() public view {
+        _assertEq(address(jackpot.token()), address(token));
+        _assertEq(jackpot.owner(), address(this));
+        _assertEq(jackpot.entryAmount(), entryAmount);
+        _assertEq(jackpot.jackpotDuration(), jackpotDuration);
+        _assertEq(jackpot.endsAt(), block.timestamp + jackpotDuration);
+        _assertEq(jackpot.pot(), 0);
+        _assertEq(jackpot.leader(), address(0));
+        _assertEq(jackpot.lastWinner(), address(0));
     }
 
     function testEnterTransfersTokensAndResetsLeaderAndTimer() public {
         vm.warp(100);
         _enter(alice);
 
-        (address leader,,,,, uint256 endsAt,,) = jackpot.rounds(1);
-
-        _assertEq(leader, alice);
-        _assertEq(_pot(1), entryAmount);
-        _assertEq(endsAt, block.timestamp + roundDuration);
+        _assertEq(jackpot.leader(), alice);
+        _assertEq(jackpot.pot(), entryAmount);
+        _assertEq(jackpot.endsAt(), block.timestamp + jackpotDuration);
         _assertEq(token.balanceOf(address(jackpot)), entryAmount);
         _assertEq(token.balanceOf(alice), 9_000 ether);
     }
 
-    function testMultipleEntriesResetTimerAndLatestEntrantWins() public {
+    function testCanEnterManyTimesAndEveryEntryResetsTimer() public {
         vm.warp(100);
         _enter(alice);
 
         vm.warp(220);
         _enter(bob);
 
-        (address leader,,,,, uint256 endsAt,,) = jackpot.rounds(1);
+        vm.warp(300);
+        _enter(alice);
 
-        _assertEq(leader, bob);
-        _assertEq(_pot(1), 2_000 ether);
-        _assertEq(endsAt, 220 + roundDuration);
-
-        vm.warp(endsAt);
-        jackpot.finalizeRound();
-
-        (, address winner,,,,,,) = jackpot.rounds(1);
-        _assertEq(winner, bob);
+        _assertEq(jackpot.leader(), alice);
+        _assertEq(jackpot.pot(), 3_000 ether);
+        _assertEq(jackpot.endsAt(), 300 + jackpotDuration);
     }
 
-    function testFinalizeAndClaimPrize() public {
+    function testWinnerClaimsExpiredJackpotAndStateResets() public {
         _enter(alice);
         _enter(bob);
 
-        vm.warp(_endsAt(1));
-        jackpot.finalizeRound();
+        vm.warp(jackpot.endsAt());
 
         uint256 bobBalanceBefore = token.balanceOf(bob);
         vm.prank(bob);
-        jackpot.claimPrize(1);
+        jackpot.claimPrize();
 
+        _assertEq(jackpot.leader(), address(0));
+        _assertEq(jackpot.lastWinner(), bob);
+        _assertEq(jackpot.pot(), 0);
+        _assertEq(jackpot.endsAt(), block.timestamp + jackpotDuration);
         _assertEq(token.balanceOf(bob), bobBalanceBefore + 2_000 ether);
         _assertEq(token.balanceOf(address(jackpot)), 0);
-        _assertEq(_pot(1), 0);
     }
 
-    function testWinnerCanClaimOldPrizeAfterNextRoundStarts() public {
-        _enter(alice);
-        _enter(bob);
-
-        vm.warp(_endsAt(1));
-        jackpot.finalizeRound();
-        jackpot.startNextRound();
-
-        _assertEq(jackpot.currentRoundId(), 2);
-
-        uint256 bobBalanceBefore = token.balanceOf(bob);
-        vm.prank(bob);
-        jackpot.claimPrize(1);
-
-        _assertEq(token.balanceOf(bob), bobBalanceBefore + 2_000 ether);
-    }
-
-    function testAdminRuleChangesOnlyAffectFutureRounds() public {
+    function testConfigChangesAffectNextEntryAfterClaim() public {
         _enter(alice);
 
         uint256 newEntryAmount = 2_500 ether;
         uint256 newDuration = 10 minutes;
         jackpot.setEntryAmount(newEntryAmount);
-        jackpot.setRoundDuration(newDuration);
+        jackpot.setJackpotDuration(newDuration);
 
         _enter(bob);
 
-        (,,, uint256 roundOneEntry, uint256 roundOneDuration,,,) = jackpot.rounds(1);
-        _assertEq(roundOneEntry, entryAmount);
-        _assertEq(roundOneDuration, roundDuration);
-        _assertEq(_pot(1), 2_000 ether);
+        _assertEq(jackpot.pot(), 2_000 ether);
+        _assertEq(jackpot.endsAt(), block.timestamp + jackpotDuration);
 
-        vm.warp(_endsAt(1));
-        jackpot.finalizeRound();
-        jackpot.startNextRound();
+        vm.warp(jackpot.endsAt());
+        vm.prank(bob);
+        jackpot.claimPrize();
 
-        (,,, uint256 roundTwoEntry, uint256 roundTwoDuration,,,) = jackpot.rounds(2);
-        _assertEq(roundTwoEntry, newEntryAmount);
-        _assertEq(roundTwoDuration, newDuration);
+        vm.warp(block.timestamp + 10);
+        _enter(carol);
+
+        _assertEq(jackpot.pot(), newEntryAmount);
+        _assertEq(jackpot.endsAt(), block.timestamp + newDuration);
     }
 
     function testFeeOnTransferTokenAccountsForActualReceivedAmount() public {
         token.setFeeBps(500);
         _enter(alice);
 
-        _assertEq(_pot(1), 950 ether);
+        _assertEq(jackpot.pot(), 950 ether);
         _assertEq(token.balanceOf(address(jackpot)), 950 ether);
     }
 
-    function testCannotEnterAfterRoundExpiresBeforeFinalize() public {
-        vm.warp(_endsAt(1));
+    function testCannotEnterExpiredFundedJackpotBeforeWinnerClaims() public {
+        _enter(alice);
+        vm.warp(jackpot.endsAt());
 
-        vm.prank(alice);
-        vm.expectRevert(TokenEntryJackpot.RoundExpired.selector);
+        vm.prank(bob);
+        vm.expectRevert(TokenEntryJackpot.JackpotExpired.selector);
         jackpot.enter();
     }
 
-    function testCannotFinalizeBeforeExpiry() public {
-        vm.expectRevert(TokenEntryJackpot.RoundNotExpired.selector);
-        jackpot.finalizeRound();
-    }
-
-    function testOnlyWinnerCanClaim() public {
+    function testExpiredEmptyJackpotRestartsOnEnter() public {
+        vm.warp(jackpot.endsAt());
         _enter(alice);
 
-        vm.warp(_endsAt(1));
-        jackpot.finalizeRound();
+        _assertEq(jackpot.leader(), alice);
+        _assertEq(jackpot.pot(), entryAmount);
+        _assertEq(jackpot.endsAt(), block.timestamp + jackpotDuration);
+    }
+
+    function testCannotClaimBeforeExpiry() public {
+        _enter(alice);
+
+        vm.prank(alice);
+        vm.expectRevert(TokenEntryJackpot.JackpotNotExpired.selector);
+        jackpot.claimPrize();
+    }
+
+    function testOnlyLeaderCanClaim() public {
+        _enter(alice);
+
+        vm.warp(jackpot.endsAt());
 
         vm.prank(bob);
         vm.expectRevert(TokenEntryJackpot.NotWinner.selector);
-        jackpot.claimPrize(1);
+        jackpot.claimPrize();
     }
 
-    function testCannotClaimTwice() public {
+    function testCannotClaimEmptyExpiredJackpot() public {
+        vm.warp(jackpot.endsAt());
+
+        vm.expectRevert(TokenEntryJackpot.NoPrize.selector);
+        jackpot.claimPrize();
+    }
+
+    function testPauseBlocksEntriesButNotWinnerClaim() public {
         _enter(alice);
-
-        vm.warp(_endsAt(1));
-        jackpot.finalizeRound();
-
-        vm.prank(alice);
-        jackpot.claimPrize(1);
-
-        vm.prank(alice);
-        vm.expectRevert(TokenEntryJackpot.PrizeAlreadyClaimed.selector);
-        jackpot.claimPrize(1);
-    }
-
-    function testPauseBlocksEntriesAndNextRoundStarts() public {
         jackpot.setPaused(true);
 
-        vm.prank(alice);
+        vm.prank(bob);
         vm.expectRevert(TokenEntryJackpot.Paused.selector);
         jackpot.enter();
 
-        jackpot.setPaused(false);
-        _enter(alice);
+        vm.warp(jackpot.endsAt());
+        uint256 aliceBalanceBefore = token.balanceOf(alice);
 
-        vm.warp(_endsAt(1));
-        jackpot.finalizeRound();
-        jackpot.setPaused(true);
+        vm.prank(alice);
+        jackpot.claimPrize();
 
-        vm.expectRevert(TokenEntryJackpot.Paused.selector);
-        jackpot.startNextRound();
+        _assertEq(token.balanceOf(alice), aliceBalanceBefore + entryAmount);
     }
 
     function testOnlyOwnerCanUpdateConfig() public {
@@ -269,7 +234,7 @@ contract TokenEntryJackpotTest {
 
         vm.prank(alice);
         vm.expectRevert(TokenEntryJackpot.NotOwner.selector);
-        jackpot.setRoundDuration(10 minutes);
+        jackpot.setJackpotDuration(10 minutes);
 
         vm.prank(alice);
         vm.expectRevert(TokenEntryJackpot.NotOwner.selector);
@@ -303,23 +268,11 @@ contract TokenEntryJackpotTest {
         jackpot.enter();
     }
 
-    function _pot(uint256 roundId) private view returns (uint256 pot) {
-        (,, pot,,,,,) = jackpot.rounds(roundId);
-    }
-
-    function _endsAt(uint256 roundId) private view returns (uint256 endsAt) {
-        (,,,,, endsAt,,) = jackpot.rounds(roundId);
-    }
-
     function _assertEq(uint256 actual, uint256 expected) private pure {
         require(actual == expected, "uint mismatch");
     }
 
     function _assertEq(address actual, address expected) private pure {
         require(actual == expected, "address mismatch");
-    }
-
-    function _assertFalse(bool value) private pure {
-        require(!value, "expected false");
     }
 }
